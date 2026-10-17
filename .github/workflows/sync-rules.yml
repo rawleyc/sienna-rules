@@ -1,0 +1,34 @@
+name: Sync Detections as Code (Self-Managed)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'rules/**' # Only trigger if files change inside the rules folder
+
+jobs:
+  deploy-rules:
+    # Forces GitHub to execute this on your internal on-premise infrastructure
+    runs-on: self-hosted #Fix this line bro
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python Dependencies
+        run: |
+          pip install requests pyyaml
+
+      - name: Deploy Rules via Kibana API
+        env:
+          KIBANA_URL: ${{ secrets.KIBANA_URL }}
+          KIBANA_API_KEY: ${{ secrets.KIBANA_API_KEY }}
+          INTERNAL_CA: ${{ secrets.INTERNAL_CA_CERT }}
+        run: |
+          python .github/scripts/sync_rules.py
