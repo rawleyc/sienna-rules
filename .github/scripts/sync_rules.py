@@ -23,6 +23,7 @@ else:
 # 2. Build Rule API Payload
 rules_to_sync = []
 rule_files = glob.glob('rules/**/*.yaml', recursive=True) + glob.glob('rules/**/*.yml', recursive=True)
+ndjson_files = glob.glob('rules/**/*.ndjson', recursive=True)
 
 for file_path in rule_files:
     with open(file_path, 'r') as stream:
@@ -31,6 +32,22 @@ for file_path in rule_files:
             rules_to_sync.append(rule_data)
         except yaml.YAMLError as exc:
             print(f"Error parsing YAML file {file_path}: {exc}")
+
+for file_path in ndjson_files:
+    with open(file_path, 'r') as stream:
+        for line_number, line in enumerate(stream, start=1):
+            if not line.strip():
+                continue
+
+            try:
+                rule_data = json.loads(line)
+            except json.JSONDecodeError as exc:
+                print(f"Error parsing NDJSON file {file_path} on line {line_number}: {exc}")
+                continue
+
+            # Kibana exports can include a summary object after the rule objects.
+            if isinstance(rule_data, dict) and rule_data.get('name'):
+                rules_to_sync.append(rule_data)
 
 if not rules_to_sync:
     print("No rules found to sync.")
