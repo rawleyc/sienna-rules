@@ -18,15 +18,17 @@ jobs:
 
       # 1. Puncture a temporary opening in your AWS Security Group for this runner's IP
       - name: Open Port 5601 in AWS Security Group
-        uses: sohelamin/aws-security-group-add-ip-action@v1.0.1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: 'eu-central-1' # Replace with your actual AWS region if different
-          aws-security-group-id: ${{ secrets.AWS_SECURITY_GROUP_ID }}
-          port: '5601'
-          protocol: 'tcp'
-          description: 'GitHub Action Ephemeral Runner'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: eu-central-1
+          AWS_SECURITY_GROUP_ID: ${{ secrets.AWS_SECURITY_GROUP_ID }}
+        run: |
+          RUNNER_IP="$(curl -fsSL https://checkip.amazonaws.com | tr -d '\n')"
+          echo "RUNNER_IP=${RUNNER_IP}" >> "$GITHUB_ENV"
+          aws ec2 authorize-security-group-ingress \
+            --group-id "$AWS_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=5601,ToPort=5601,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Action Ephemeral Runner'}]"
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -45,6 +47,16 @@ jobs:
         run: |
           python .github/scripts/sync_rules.py
 
-      # NOTE: The "aws-security-group-add-ip-action" has a built-in post-execution hook.
-      # When this job finishes or crashes, it automatically deletes its IP address 
-      # from your AWS Security Group so your environment stays locked down!
+      - name: Close Port 5601 in AWS Security Group
+        if: always() && env.RUNNER_IP != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: eu-central-1
+          AWS_SECURITY_GROUP_ID: ${{ secrets.AWS_SECURITY_GROUP_ID }}
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --group-id "$AWS_SECURITY_GROUP_ID" \
+            --protocol tcp \
+            --port 5601 \
+            --cidr "${RUNNER_IP}/32" || true
