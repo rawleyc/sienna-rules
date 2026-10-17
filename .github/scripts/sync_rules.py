@@ -18,7 +18,7 @@ if INTERNAL_CA:
     ca_verify = ca_path
 else:
     # Turn this to False ONLY if testing isolated labs without certificates 
-    ca_verify = True 
+    ca_verify = False
 
 # 2. Build Rule API Payload
 rules_to_sync = []
