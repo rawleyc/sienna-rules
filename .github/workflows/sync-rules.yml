@@ -39,10 +39,24 @@ jobs:
         run: |
           pip install requests pyyaml
 
-      # 2. Deploy your rules directly to your public AWS instance endpoint
+      # 2. Verify and deploy directly to the public AWS instance endpoint
+      - name: Check Kibana connectivity
+        env:
+          KIBANA_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if curl --silent --show-error --connect-timeout 10 --max-time 10 -o /dev/null "http://${KIBANA_HOST}:5601/api/status"; then
+              exit 0
+            fi
+            echo "Kibana is not reachable yet; retrying in 10 seconds..."
+            sleep 10
+          done
+          echo "Kibana did not accept connections on HTTP port 5601."
+          exit 1
+
       - name: Deploy Rules via Kibana API
         env:
-          KIBANA_URL: "https://${{ secrets.SSH_HOST }}:5601"
+          KIBANA_URL: "http://${{ secrets.SSH_HOST }}:5601"
           KIBANA_API_KEY: ${{ secrets.KIBANA_API_KEY }}
         run: |
           python .github/scripts/sync_rules.py
