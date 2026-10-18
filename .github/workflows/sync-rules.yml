@@ -4,8 +4,8 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'rules/**' # Only trigger if files change inside the rules folder
+    # paths:
+    #   - 'rules/**' # Only trigger if files change inside the rules folder
 
 jobs:
   deploy-rules:

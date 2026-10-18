@@ -53,9 +53,10 @@ if not rules_to_sync:
     print("No rules found to sync.")
     exit(0)
 
-# Build bulk payload format for Kibana Detection Engine
-# For target custom space replace with: f"{KIBANA_URL}/s/YOUR_SPACE/api/detection_engine/rules/_bulk_create"
-bulk_url = f"{KIBANA_URL}/api/detection_engine/rules/_bulk_create"
+# Kibana 9.5 exposes the Detection Engine create endpoint, but not the
+# older bulk-create endpoint. For a custom space, insert "/s/YOUR_SPACE"
+# after KIBANA_URL.
+rule_url = f"{KIBANA_URL}/api/detection_engine/rules"
 
 headers = {
     "Authorization": f"ApiKey {API_KEY}",
@@ -63,14 +64,28 @@ headers = {
     "Content-Type": "application/json"
 }
 
-# 3. Request Sync execution
+# 3. Request sync execution
 print(f"Syncing {len(rules_to_sync)} rule(s) to self-managed Kibana...")
-response = requests.post(bulk_url, headers=headers, json=rules_to_sync, verify=ca_verify)
+failed_rules = []
 
-if response.status_code in [200, 207]:
-    print("Bulk deployment script execution completed successfully!")
-    print(response.json())
-else:
-    print(f"Deployment failed with status code: {response.status_code}")
-    print(response.text)
+for rule_data in rules_to_sync:
+    response = requests.post(
+        rule_url,
+        headers=headers,
+        json=rule_data,
+        verify=ca_verify,
+    )
+
+    if response.status_code not in [200, 201]:
+        failed_rules.append({
+            "name": rule_data.get("name", "<unnamed rule>"),
+            "status_code": response.status_code,
+            "response": response.text,
+        })
+
+if failed_rules:
+    print(f"Deployment failed for {len(failed_rules)} rule(s):")
+    print(json.dumps(failed_rules, indent=2))
     exit(1)
+
+print(f"Successfully deployed {len(rules_to_sync)} rule(s).")
